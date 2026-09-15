@@ -8,11 +8,9 @@
 
 **Repository GitHub**
 
-> TODO : lien vers le repository GitHub (public, ou privé avec accès partagé au professeur)
+https://github.com/pho-rg/tp1-erc20
 
 **Contrat déployé et vérifié sur Sepolia**
-
-> TODO : lien Etherscan Sepolia du contrat MyToken déployé et vérifié (`https://sepolia.etherscan.io/address/...`)
 
 ---
 
@@ -63,20 +61,9 @@ Le paramètre `runs` de l'optimiseur Solidity estime le nombre de fois où chaqu
 
 ---
 
-## 3. Couverture de code
-
-Capture d'écran de la sortie de `forge coverage --report summary`, montrant la couverture par ligne et par branche pour `MyToken.sol`.
-
-> **TODO** : insérer ici la capture d'écran du terminal après exécution de `forge coverage --report summary` (glisser l'image dans ce fichier, ou l'ajouter via `![coverage](chemin/vers/capture.png)`).
-
-*Bonus visé : couverture branch > 90 %.*
-
----
-
 ## 4. Difficultés rencontrées et solutions
 
 - **`foundryup` introuvable après installation.** Le script d'installation ajoute l'export du PATH dans un fichier de configuration shell (`~/.zshenv` ou `~/.bash_profile`) qui n'était pas celui lu par le terminal utilisé. Solution : export manuel de `$HOME/.foundry/bin` dans le PATH, puis ajout de la ligne dans le bon fichier de configuration.
 - **`forge init` refuse un répertoire non vide.** `npx hardhat init` ayant déjà peuplé le dossier, `forge init` nécessite le flag `--force` pour initialiser Foundry par-dessus la structure Hardhat existante.
 - **Clé `remappings` dupliquée dans `foundry.toml`.** L'ajout des remappings via une redirection shell (`echo >> foundry.toml`) a créé un second bloc `remappings = [...]` en fin de fichier, alors que `forge init --force` en avait déjà généré un — ce qui provoque une erreur TOML « duplicate key ». Solution : fusionner les deux blocs en un seul, dans la section `[profile.default]`, et adapter `src` vers le dossier `contracts/` utilisé par Hardhat.
 
-> **TODO** : ajouter toute difficulté supplémentaire rencontrée lors des tests, du fuzzing ou du déploiement Sepolia.
