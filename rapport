@@ -1,0 +1,82 @@
+# TP1 — Blockchain & Développement
+### Environnement Hardhat & Foundry — Token ERC-20 from scratch
+**M2 AL/IABD — Année 2025-2026**
+
+---
+
+## 1. Liens du projet
+
+**Repository GitHub**
+
+> TODO : lien vers le repository GitHub (public, ou privé avec accès partagé au professeur)
+
+**Contrat déployé et vérifié sur Sepolia**
+
+> TODO : lien Etherscan Sepolia du contrat MyToken déployé et vérifié (`https://sepolia.etherscan.io/address/...`)
+
+---
+
+## 2. Analyse et optimisation gas
+
+Les mesures ci-dessous sont issues de `gas-report.txt` (généré par `npx hardhat test`) et de `.gas-snapshot` (généré par `forge snapshot`). Les valeurs chiffrées sont à compléter après exécution des commandes sur l'implémentation finale.
+
+### Q1. Gas utilisé par `transfer()`
+
+La fonction `transfer()` effectue une lecture de `balanceOf[from]` (SLOAD), une comparaison, deux écritures de storage (`balanceOf[from]` et `balanceOf[to]`, en SSTORE) et l'émission d'un event `Transfer`. Le coût dépend notamment du fait que le slot `balanceOf[to]` soit déjà « chaud » (non nul) ou non (un SSTORE vers un slot initialement à zéro coûte davantage, 20 000 gas contre ~5 000 pour une mise à jour).
+
+> **TODO** : indiquer le gas mesuré (colonne « avg » ou « min/max » du `gas-report.txt` Hardhat, ou ligne correspondante du `.gas-snapshot` Foundry) pour un `transfer()` vers une adresse déjà créditée, et pour un `transfer()` vers une adresse à balance nulle.
+
+### Q2. `transfer()` avec et sans le bloc `unchecked`
+
+Le bloc `unchecked` autour de la mise à jour des balances dans `_transfer` désactive les vérifications automatiques d'overflow/underflow du compilateur (actives par défaut depuis Solidity 0.8). Ce contrôle est redondant ici car la condition `bal < amount` est déjà vérifiée juste avant, donc la soustraction ne peut pas sous-flow et l'addition sur `balanceOf[to]` ne peut pas dépasser `totalSupply`. Retirer le `unchecked` réintroduit ces vérifications (comparaisons supplémentaires par le compilateur) et augmente donc le coût en gas de chaque `transfer()`, `mint()` et `burn()`.
+
+> **TODO** : commenter temporairement le bloc `unchecked` dans `_transfer`, relancer `forge snapshot` ou `npx hardhat test`, et indiquer ici l'écart de gas mesuré (en valeur absolue et en %).
+
+### Q3. Erreurs custom vs `require` avec chaîne de caractères
+
+Une erreur custom (`revert InsufficientBalance(bal, amount)`) encode uniquement un sélecteur 4 bytes plus les paramètres ABI-encodés, sans stocker de chaîne de caractères dans le bytecode déployé. Un `require(condition, "message")` doit en revanche encoder la chaîne complète dans le calldata de retour et augmente la taille du bytecode déployé (donc le coût de déploiement), en plus d'un léger surcoût d'exécution au moment du revert lié à l'encodage de la chaîne.
+
+> **TODO** : réécrire temporairement une vérification (ex. dans `_transfer`) avec `require(bal >= amount, "insufficient balance")` à la place du `revert InsufficientBalance(...)`, mesurer le gas du chemin de succès et du chemin de revert dans les deux versions, et reporter les chiffres ici.
+
+### Q4. Gas du constructeur / déploiement
+
+Le coût de déploiement se compose du coût de création du contrat (21 000 gas de base pour toute transaction, plus le coût lié à la taille du bytecode déployé, ~200 gas par byte via `CODEDEPOSIT`) et du coût d'exécution du constructeur lui-même : écriture de `name` et `symbol` (types dynamiques, plus coûteux qu'un stockage simple), écriture de `decimals` (`immutable`, inséré directement dans le bytecode et donc sans SSTORE à l'exécution), écriture de `owner`, puis l'appel à `_mint` qui effectue deux SSTORE supplémentaires (`totalSupply` et `balanceOf[owner]`) sur des slots initialement vides — donc au tarif plein de 20 000 gas chacun.
+
+> **TODO** : indiquer le gas total de déploiement mesuré (ligne « Deployment Cost » du `gas-report.txt`, ou sortie de `forge test --gas-report`) et identifier la ligne la plus coûteuse.
+
+### Q5. Optimiseur : `runs` 1 vs 200 vs 1000
+
+Le paramètre `runs` de l'optimiseur Solidity estime le nombre de fois où chaque fonction sera appelée au cours de la vie du contrat, pour arbitrer entre taille du bytecode déployé et coût d'exécution. Une valeur basse (`runs: 1`) optimise pour un déploiement peu coûteux et un bytecode compact, au prix d'un coût d'exécution plus élevé par appel. Une valeur haute (`runs: 1000`) fait l'inverse : bytecode plus volumineux (déploiement plus cher) mais fonctions individuelles moins coûteuses à l'exécution, ce qui est pertinent pour un token ERC-20 appelé très fréquemment (`transfer`/`approve`).
+
+> **TODO** : relancer la compilation avec `optimizer.runs = 1`, puis `200`, puis `1000` dans `hardhat.config.ts` (et la valeur équivalente dans `foundry.toml`), et reporter dans un tableau le coût de déploiement et le coût moyen de `transfer()` pour chaque configuration.
+
+### Tableau récapitulatif (à compléter)
+
+| Fonction | Gas mesuré | Source |
+|---|---|---|
+| `transfer()` | TODO | gas-report.txt / .gas-snapshot |
+| `approve()` | TODO | gas-report.txt / .gas-snapshot |
+| `transferFrom()` | TODO | gas-report.txt / .gas-snapshot |
+| `mint()` | TODO | gas-report.txt / .gas-snapshot |
+| `burn()` | TODO | gas-report.txt / .gas-snapshot |
+| Déploiement (constructeur) | TODO | gas-report.txt |
+
+---
+
+## 3. Couverture de code
+
+Capture d'écran de la sortie de `forge coverage --report summary`, montrant la couverture par ligne et par branche pour `MyToken.sol`.
+
+> **TODO** : insérer ici la capture d'écran du terminal après exécution de `forge coverage --report summary` (glisser l'image dans ce fichier, ou l'ajouter via `![coverage](chemin/vers/capture.png)`).
+
+*Bonus visé : couverture branch > 90 %.*
+
+---
+
+## 4. Difficultés rencontrées et solutions
+
+- **`foundryup` introuvable après installation.** Le script d'installation ajoute l'export du PATH dans un fichier de configuration shell (`~/.zshenv` ou `~/.bash_profile`) qui n'était pas celui lu par le terminal utilisé. Solution : export manuel de `$HOME/.foundry/bin` dans le PATH, puis ajout de la ligne dans le bon fichier de configuration.
+- **`forge init` refuse un répertoire non vide.** `npx hardhat init` ayant déjà peuplé le dossier, `forge init` nécessite le flag `--force` pour initialiser Foundry par-dessus la structure Hardhat existante.
+- **Clé `remappings` dupliquée dans `foundry.toml`.** L'ajout des remappings via une redirection shell (`echo >> foundry.toml`) a créé un second bloc `remappings = [...]` en fin de fichier, alors que `forge init --force` en avait déjà généré un — ce qui provoque une erreur TOML « duplicate key ». Solution : fusionner les deux blocs en un seul, dans la section `[profile.default]`, et adapter `src` vers le dossier `contracts/` utilisé par Hardhat.
+
+> **TODO** : ajouter toute difficulté supplémentaire rencontrée lors des tests, du fuzzing ou du déploiement Sepolia.
